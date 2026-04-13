@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Deteksi Alat Laboratorium</title>
+
+<style>
+    body {
+        font-family: Arial;
+        text-align: center;
+        background: #f4f6f9;
+    }
+
+    h2 {
+        color: #2c3e50;
+    }
+
+    #webcam-container {
+        margin: 20px;
+    }
+
+    #hasil, #deskripsi {
+        margin: 10px auto;
+        padding: 15px;
+        width: 300px;
+        border-radius: 10px;
+        background: white;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    img {
+        width: 150px;
+        margin-top: 10px;
+    }
+
+    button {
+        padding: 10px 20px;
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #2980b9;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>🔬 Deteksi Alat Laboratorium</h2>
+<button onclick="init()">Mulai Kamera</button>
+
+<div id="webcam-container"></div>
+
+<div id="hasil"></div>
+<div id="deskripsi"></div>
+<div id="gambar"></div>
+
+<audio id="suara" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+<script>
+const URL = "https://teachablemachine.withgoogle.com/models/avBbeJTs2/";
+
+let model, webcam;
+let lastDetected = "";
+
+// 📚 Data alat (nama, deskripsi, gambar)
+const dataAlat = {
+    "Beaker": {
+        deskripsi: "Gelas beaker digunakan untuk menampung dan mencampur larutan.",
+        gambar: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Beaker.jpg/200px-Beaker.jpg"
+    },
+    "Erlenmeyer": {
+        deskripsi: "Labu Erlenmeyer digunakan untuk mencampur larutan tanpa mudah tumpah.",
+        gambar: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/Erlenmeyer_flask.jpg/200px-Erlenmeyer_flask.jpg"
+    },
+    "Tabung Reaksi": {
+        deskripsi: "Digunakan untuk reaksi kimia dalam jumlah kecil.",
+        gambar: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/Test_tubes.jpg/200px-Test_tubes.jpg"
+    },
+    "Spatula": {
+        deskripsi: "Digunakan untuk mengambil serbuk padat yang sangat kecil dalam jumlah sedikit.",
+        gambar: "https://www.tokopedia.com/medicalogymakas/spatula-stainless-steel-laboratorium?utm_source=google&utm_medium=organic&utm_campaign=pdp"
+    },
+    "Pipet tetes": {
+        deskripsi: "Digunakan untuk memindahkan cairan dalam jumlah kecil.",
+        gambar: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Pasteur_pipette.jpg/200px-Pasteur_pipette.jpg"
+    }
+};
+
+async function init() {
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+
+    model = await tmImage.load(modelURL, metadataURL);
+
+    webcam = new tmImage.Webcam(300, 300, true);
+    await webcam.setup();
+    await webcam.play();
+    window.requestAnimationFrame(loop);
+
+    document.getElementById("webcam-container").appendChild(webcam.canvas);
+}
+
+async function loop() {
+    webcam.update();
+    await predict();
+    requestAnimationFrame(loop);
+}
+
+async function predict() {
+    const prediction = await model.predict(webcam.canvas);
+
+    let terbaik = prediction[0];
+    for (let i = 1; i < prediction.length; i++) {
+        if (prediction[i].probability > terbaik.probability) {
+            terbaik = prediction[i];
+        }
+    }
+
+    // 🎯 Filter minimal 80%
+    if (terbaik.probability < 0.80) {
+        document.getElementById("hasil").innerHTML = "<b>Belum terdeteksi dengan yakin...</b>";
+        document.getElementById("deskripsi").innerHTML = "";
+        document.getElementById("gambar").innerHTML = "";
+        return;
+    }
+
+    const nama = terbaik.className;
+
+    document.getElementById("hasil").innerHTML =
+        `<h3>${nama}</h3>
+         <p>Kepercayaan: ${(terbaik.probability * 100).toFixed(1)}%</p>`;
+
+    if (dataAlat[nama]) {
+        document.getElementById("deskripsi").innerHTML =
+            dataAlat[nama].deskripsi;
+
+        document.getElementById("gambar").innerHTML =
+            `<img src="${dataAlat[nama].gambar}">`;
+    }
+
+    // 🔊 Suara saat alat baru terdeteksi
+    if (nama !== lastDetected) {
+        document.getElementById("suara").play();
+        lastDetected = nama;
+    }
+}
+</script>
+
+</body>
+</html>
